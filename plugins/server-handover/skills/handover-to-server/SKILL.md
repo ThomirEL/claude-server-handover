@@ -5,19 +5,21 @@ description: Hand off, sync, or deploy the current project to my home server ove
 
 # handover-to-server
 
+> **Where the scripts live.** `${SKILLS}` below means the `skills/` directory this SKILL.md sits in: `${CLAUDE_PLUGIN_ROOT}/skills` when installed as the `server-handover` plugin, or `~/.claude/skills` when installed with `install.sh`. Resolve it once, then run the scripts from there.
+
 Pushes the current project to the home server and starts Claude Code there in a
 detached tmux session, already working on a prompt if you give one. One script:
 rsync (repo + configured extra paths + guarded files) → remote setup command →
 pre-accept folder trust → tmux + `claude "<prompt>"`. It is a **push** (this
 machine → server).
 
-Driver: `~/.claude/skills/handover-to-server/handover.sh`. Run it from inside
+Driver: `${SKILLS}/handover-to-server/handover.sh`. Run it from inside
 the project; do not re-derive it.
 
 ## Run
 
 ```bash
-~/.claude/skills/handover-to-server/handover.sh "continue the UX work — run pytest first"
+${SKILLS}/handover-to-server/handover.sh "continue the UX work — run pytest first"
 ```
 
 No argument = sync and launch an idle session. It prints the attach command for

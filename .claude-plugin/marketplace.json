@@ -1,0 +1,15 @@
+{
+  "name": "claude-server-handover",
+  "description": "Hand a Claude Code session to a home server over Tailscale, let it work, pull the work and the conversation back.",
+  "owner": { "name": "Thomas Edward Larsen", "url": "https://github.com/ThomirEL" },
+  "plugins": [
+    {
+      "name": "server-handover",
+      "source": "./plugins/server-handover",
+      "description": "setup-server, handover-to-server, bring-home-from-server: push a project to your home server, start Claude in tmux (with a prompt), pull the work and the session transcript back.",
+      "version": "1.0.0",
+      "category": "productivity",
+      "keywords": ["ssh", "tmux", "rsync", "tailscale", "homelab", "handover", "resume"]
+    }
+  ]
+}

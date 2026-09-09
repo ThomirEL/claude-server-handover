@@ -101,7 +101,18 @@ Missing server config → exit **2**. Missing project config → exit **3**. The
 
 ## Install
 
-Prerequisites on the **server**: `ssh` with key auth, `tmux`, `rsync`, `python3`, and [Claude Code](https://docs.anthropic.com/en/docs/claude-code) logged in. On the **Mac**: `rsync`, `python3`, `shasum` (all preinstalled).
+### As a plugin (recommended)
+
+Inside Claude Code:
+
+```
+/plugin marketplace add ThomirEL/claude-server-handover
+/plugin install server-handover@claude-server-handover
+```
+
+Skills are then namespaced: `/server-handover:setup-server`, `/server-handover:handover-to-server`, `/server-handover:bring-home-from-server`. Natural language works too ("hand this off to my server").
+
+### As plain skills
 
 ```bash
 git clone https://github.com/ThomirEL/claude-server-handover.git
@@ -109,6 +120,10 @@ cd claude-server-handover && ./install.sh
 ```
 
 `install.sh` symlinks the three skills into `~/.claude/skills/`, so `git pull` updates them. Use `./install.sh --copy` if you prefer copies.
+
+### Prerequisites
+
+On the **server**: `ssh` with key auth, `tmux`, `rsync`, `python3`, and [Claude Code](https://docs.anthropic.com/en/docs/claude-code) logged in. On the **Mac**: `rsync`, `python3`, `shasum` (all preinstalled).
 
 Then, in Claude Code:
 
@@ -119,9 +134,11 @@ Then, in Claude Code:
 …or without Claude:
 
 ```bash
-~/.claude/skills/setup-server/setup-server.sh server --host you@100.x.y.z
-~/.claude/skills/setup-server/setup-server.sh project --dir ~/repos/myproj --guarded "~/.myproj/state.db"
+<skills>/setup-server/setup-server.sh server --host you@100.x.y.z
+<skills>/setup-server/setup-server.sh project --dir ~/repos/myproj --guarded "~/.myproj/state.db"
 ```
+
+where `<skills>` is `~/.claude/skills` for a manual install, or the plugin's `skills/` directory.
 
 ## Use
 
@@ -145,7 +162,7 @@ Later, from any machine with the skills installed:
       cd '/Users/you/repos/myproj' && claude --resume 6f1c…
 ```
 
-Scripts work standalone too: `skills/handover-to-server/handover.sh "prompt"` and `skills/bring-home-from-server/bring-home.sh`.
+Scripts work standalone too: `plugins/server-handover/skills/handover-to-server/handover.sh "prompt"` and `…/bring-home-from-server/bring-home.sh`.
 
 ## Project config reference
 
@@ -171,6 +188,15 @@ Runtime knobs: `HANDOVER_FORCE=1`, `HANDOVER_SKIP_SETUP=1`, `HANDOVER_ATTACH=1`,
 - **Non-interactive shells.** Ubuntu's `.bashrc` returns early for non-interactive shells, so nothing you defined there exists. The launcher exports what it needs itself.
 - **Non-ASCII paths** (`ø`, spaces) survive end to end; Claude's per-project slug is computed separately on each side.
 - **Newer state on the other side.** The whole reason for the guard. See above.
+
+## Related work (and why this exists)
+
+- [Remote Control](https://code.claude.com/docs/en/remote-control) (official) lets you reach a running session from your phone or browser. The process must stay alive on the machine that started it; close the laptop and it goes offline. It solves *access*, not *moving the work*.
+- [anthropics/claude-code#31992](https://github.com/anthropics/claude-code/issues/31992) asks for cross-machine session resume. Open, no official answer yet. This repo is a working one for the two-machine case.
+- [claude-code-sync](https://github.com/perfectra1n/claude-code-sync), [claude-sync](https://github.com/baptisterajaut/claude-sync), [claude-code-migrate](https://github.com/emreonal11/claude-code-migrate) sync transcripts or `~/.claude` config between machines. None move the project or start Claude remotely.
+- [claude-session](https://github.com/kshartman/claude-session) launches Claude in tmux with a prompt and tracks sessions in MongoDB. No code or state sync, no return trip.
+
+What none of them do, and this does: the **project travels** (repo with branches, data, guarded state), Claude **starts working immediately**, and the **conversation comes home** for `claude --resume`.
 
 ## Non-goals
 

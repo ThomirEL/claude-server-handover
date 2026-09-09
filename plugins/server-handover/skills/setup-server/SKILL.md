@@ -5,7 +5,9 @@ description: One-time setup for the home-server handover skills. Configures whic
 
 # setup-server
 
-Two layers of config, one script: `~/.claude/skills/setup-server/setup-server.sh`.
+> **Where the scripts live.** `${SKILLS}` below means the `skills/` directory this SKILL.md sits in: `${CLAUDE_PLUGIN_ROOT}/skills` when installed as the `server-handover` plugin, or `~/.claude/skills` when installed with `install.sh`. Resolve it once, then run the scripts from there.
+
+Two layers of config, one script: `${SKILLS}/setup-server/setup-server.sh`.
 
 | Layer | File | Created by |
 |---|---|---|
@@ -22,7 +24,7 @@ ideal). Optionally a remote `CLAUDE_CONFIG_DIR` if they use a separate Claude
 profile on the server.
 
 ```bash
-~/.claude/skills/setup-server/setup-server.sh server --host user@host
+${SKILLS}/setup-server/setup-server.sh server --host user@host
 ```
 
 It checks key-based ssh (no password prompts — `ssh-copy-id user@host` if it
@@ -36,7 +38,7 @@ lives. Usually the repo root; can be a parent folder holding repo + data.
 Ask the user, then run (all flags optional except `--dir`):
 
 ```bash
-~/.claude/skills/setup-server/setup-server.sh project --dir ~/repos/myproj \
+${SKILLS}/setup-server/setup-server.sh project --dir ~/repos/myproj \
   --repo . \
   --sync "~/repos/myproj-data ~/some/other/dir" \
   --guarded "~/.myproj/state.db" \
@@ -65,7 +67,7 @@ Good defaults when the user is unsure: `--repo .` and nothing else. Only add
 ## Check what would be used
 
 ```bash
-~/.claude/skills/setup-server/setup-server.sh status --dir ~/repos/myproj
+${SKILLS}/setup-server/setup-server.sh status --dir ~/repos/myproj
 ```
 
 ## Reconfigure

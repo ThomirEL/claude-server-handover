@@ -10,7 +10,7 @@ for s in setup-server handover-to-server bring-home-from-server; do
     echo "⚠ $DEST/$s exists and is not a symlink — moving it to $DEST/$s.bak"; mv "$DEST/$s" "$DEST/$s.bak"
   fi
   rm -f "$DEST/$s"
-  if [ "${1:-}" = "--copy" ]; then cp -R "$HERE/skills/$s" "$DEST/$s"; else ln -s "$HERE/skills/$s" "$DEST/$s"; fi
+  if [ "${1:-}" = "--copy" ]; then cp -R "$HERE/plugins/server-handover/skills/$s" "$DEST/$s"; else ln -s "$HERE/plugins/server-handover/skills/$s" "$DEST/$s"; fi
   echo "✓ $s"
 done
 echo

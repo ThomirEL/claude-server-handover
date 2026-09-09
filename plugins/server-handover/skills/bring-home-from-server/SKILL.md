@@ -5,20 +5,22 @@ description: Pull work back from my home server to this machine and continue loc
 
 # bring-home-from-server
 
+> **Where the scripts live.** `${SKILLS}` below means the `skills/` directory this SKILL.md sits in: `${CLAUDE_PLUGIN_ROOT}/skills` when installed as the `server-handover` plugin, or `~/.claude/skills` when installed with `install.sh`. Resolve it once, then run the scripts from there.
+
 The return trip for [handover-to-server](../handover-to-server/SKILL.md). Pulls
 the home server's work back (server → this machine): repo with any branches
 made there, `HANDOVER_SYNC_PATHS`, `HANDOVER_GUARDED_FILES` (usually the reason
 to come home — that is where the latest state lives), Claude memory, and the
 newest server session transcript so you can resume the conversation locally.
 
-Driver: `~/.claude/skills/bring-home-from-server/bring-home.sh`. Run it from
+Driver: `${SKILLS}/bring-home-from-server/bring-home.sh`. Run it from
 inside the project; do not re-derive it. Uses the same `server.env` +
 `.handover.env` as the forward skill (exit 2/3 → run `/setup-server`).
 
 ## Run
 
 ```bash
-~/.claude/skills/bring-home-from-server/bring-home.sh
+${SKILLS}/bring-home-from-server/bring-home.sh
 ```
 
 Ends by printing how to continue here — the user's interactive step, hand it over:
@@ -32,7 +34,7 @@ cd '<launch dir>' && claude --resume <session-id>
 Pulls real server content but writes under a scratch prefix:
 
 ```bash
-BRINGHOME_DEST_PREFIX=/tmp/bh-test ~/.claude/skills/bring-home-from-server/bring-home.sh
+BRINGHOME_DEST_PREFIX=/tmp/bh-test ${SKILLS}/bring-home-from-server/bring-home.sh
 git -C /tmp/bh-test$HOME/repos/<proj> branch
 rm -rf /tmp/bh-test
 ```
