@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# handover-to-server — push this project to the home server and start Claude
+# Code there in a detached tmux session, optionally already working on a prompt.
+#
+#   handover.sh ["prompt for the remote Claude"]
+#
+# Config: ~/.claude/handover/server.env (machine) + <launch dir>/.handover.env
+# (project; found by walking up from $PWD, or HANDOVER_PROJECT_CONFIG=path).
+# Exit 2 = server not set up, exit 3 = project not set up → run /setup-server.
+#
+# Direction is Mac -> server (a push). Repo + HANDOVER_SYNC_PATHS: Mac is
+# canonical. HANDOVER_GUARDED_FILES: backed up on the server first and never
+# overwritten when the server copy is newer (HANDOVER_FORCE=1 overrides).
+# Knobs: HANDOVER_ATTACH=1 attach at the end (humans only), HANDOVER_SKIP_SETUP=1.
+set -euo pipefail
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+. "$HERE/../setup-server/lib.sh"
+PROMPT="$*"
+
+load_server_config
+load_project_config "$PWD"
+say "handover -> $SERVER   project: $LAUNCH_DIR   session: $SESSION"
+
+"${SSH[@]}" "$SERVER" "mkdir -p '$REMOTE_REPO' '$REMOTE_LAUNCH' '$REMOTE_HOME/.claude/projects' '$REMOTE_HOME/.handover'"
+
+say "code (repo + .git)…"
+rsync -az "${EXCL[@]}" "$LOCAL_REPO/" "$SERVER:$REMOTE_REPO/"
+
+for p in "${SYNC_PATHS[@]}"; do
+  [ -e "$p" ] || { warn "$p missing locally — skipped"; continue; }
+  say "sync $p…"
+  if [ -d "$p" ]; then
+    "${SSH[@]}" "$SERVER" "mkdir -p '$(remap "$p")'"
+    rsync -az "${EXCL[@]}" "$p/" "$SERVER:$(remap "$p")/"
+  else
+    "${SSH[@]}" "$SERVER" "mkdir -p '$(dirname "$(remap "$p")")'"
+    rsync -az "$p" "$SERVER:$(remap "$p")"
+  fi
+done
+
+for f in "${GUARDED_FILES[@]}"; do say "guarded $f…"; guarded_push "$f" "$(remap "$f")"; done
+
+# Claude context: global CLAUDE.md (opt-out) + this project's memory dir
+if [ "${HANDOVER_SYNC_GLOBAL_CLAUDE_MD:-1}" = 1 ] && [ -f "$HOME/.claude/CLAUDE.md" ]; then
+  rsync -az "$HOME/.claude/CLAUDE.md" "$SERVER:$REMOTE_HOME/.claude/CLAUDE.md" || true
+fi
+LOCAL_MEM="$HOME/.claude/projects/$(slug "$LAUNCH_DIR")/memory"
+if [ -d "$LOCAL_MEM" ]; then
+  say "Claude memory…"
+  REMOTE_MEM_DIR="$REMOTE_HOME/.claude/projects/$(slug "$REMOTE_LAUNCH")"
+  "${SSH[@]}" "$SERVER" "mkdir -p '$REMOTE_MEM_DIR'"
+  rsync -az "$LOCAL_MEM" "$SERVER:$REMOTE_MEM_DIR/"
+fi
+
+if [ -n "$REMOTE_SETUP" ] && [ "${HANDOVER_SKIP_SETUP:-0}" != 1 ]; then
+  say "remote setup: $REMOTE_SETUP"
+  printf 'cd %q || exit 1\n%s\n' "$REMOTE_REPO" "$REMOTE_SETUP" | "${SSH[@]}" "$SERVER" "cat > '$REMOTE_HOME/.handover/$SESSION.setup.sh'"
+  "${SSH[@]}" "$SERVER" "bash -lc 'bash \"\$HOME/.handover/$SESSION.setup.sh\"'" || warn "remote setup reported errors — finish it in the session"
+fi
+
+# Pre-accept the trust dialog for the launch dir in the chosen profile, otherwise a
+# first launch stalls on "Is this a project you trust?" and the prompt never runs.
+say "pre-accepting folder trust…"
+"${SSH[@]}" "$SERVER" "python3 - '$WORK_PROFILE_DIR/.claude.json' '$REMOTE_LAUNCH'" <<'PY'
+import json, os, sys
+cfg, proj = sys.argv[1], sys.argv[2]
+os.makedirs(os.path.dirname(cfg), exist_ok=True)
+try: d = json.load(open(cfg))
+except Exception: d = {}
+e = d.setdefault("projects", {}).setdefault(proj, {})
+if not e.get("hasTrustDialogAccepted"):
+    e["hasTrustDialogAccepted"] = True
+    json.dump(d, open(cfg, "w"), indent=2); print("  ✓ trust pre-accepted")
+else: print("  ✓ already trusted")
+PY
+
+# Prompt goes through a file (no shell-quoting games); launcher bakes in paths + env.
+say "launching Claude…"
+printf '%s' "$PROMPT" | "${SSH[@]}" "$SERVER" "cat > '$REMOTE_HOME/.handover/$SESSION.prompt'"
+{
+  printf '#!/usr/bin/env bash\ncd %q || exit 1\nexport CLAUDE_CONFIG_DIR=%q\n' "$REMOTE_LAUNCH" "$WORK_PROFILE_DIR"
+  for kv in "${REMOTE_ENV[@]}"; do
+    k="${kv%%=*}"; v="${kv#*=}"; v="$(remap "$(expand_tilde "$v")")"
+    printf 'export %s=%q\n' "$k" "$v"
+  done
+  printf 'P="$HOME/.handover/%s.prompt"\nif [ -s "$P" ]; then exec claude "$(cat "$P")"; else exec claude; fi\n' "$SESSION"
+} | "${SSH[@]}" "$SERVER" "cat > '$REMOTE_HOME/.handover/$SESSION.launch.sh'; chmod +x '$REMOTE_HOME/.handover/$SESSION.launch.sh'"
+
+SESS="$("${SSH[@]}" "$SERVER" "
+  s='$SESSION'; i=1
+  while tmux has-session -t \"\$s\" 2>/dev/null; do i=\$((i+1)); s='$SESSION'-\$i; done
+  tmux new-session -d -s \"\$s\" -x 220 -y 50 \"bash -lc '\$HOME/.handover/$SESSION.launch.sh'\"
+  printf '%s' \"\$s\"
+")"
+
+echo
+printf '\033[1;32m✔ Claude is running on %s in tmux session '\''%s'\''.\033[0m\n' "$SERVER" "$SESS"
+[ -n "$PROMPT" ] && echo "  It has already started on your prompt."
+echo "  Attach from your terminal:"
+echo "      ssh -t $SERVER 'tmux attach -t $SESS'"
+[ "${HANDOVER_ATTACH:-0}" = 1 ] && exec ssh -t "$SERVER" "tmux attach -t '$SESS'"
+exit 0
