@@ -24,7 +24,7 @@ say "code (repo + .git)…"
 mkdir -p "$DEST$LOCAL_REPO"
 rsync -az "${EXCL[@]}" "$SERVER:$REMOTE_REPO/" "$DEST$LOCAL_REPO/"
 
-for p in "${SYNC_PATHS[@]}"; do
+for p in ${SYNC_PATHS[@]+"${SYNC_PATHS[@]}"}; do
   r="$(remap "$p")"
   "${SSH[@]}" "$SERVER" "[ -e '$r' ]" || { warn "$r not on server — skipped"; continue; }
   say "sync $p…"
@@ -33,7 +33,7 @@ for p in "${SYNC_PATHS[@]}"; do
 done
 
 if [ "${BRINGHOME_SKIP_GUARDED:-0}" != 1 ]; then
-  for f in "${GUARDED_FILES[@]}"; do say "guarded $f…"; guarded_pull "$(remap "$f")" "$DEST$f"; done
+  for f in ${GUARDED_FILES[@]+"${GUARDED_FILES[@]}"}; do say "guarded $f…"; guarded_pull "$(remap "$f")" "$DEST$f"; done
 fi
 
 REMOTE_PROJ="$REMOTE_HOME/.claude/projects/$(slug "$REMOTE_LAUNCH")"

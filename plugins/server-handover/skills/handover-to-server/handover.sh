@@ -25,8 +25,16 @@ say "handover -> $SERVER   project: $LAUNCH_DIR   session: $SESSION"
 
 say "code (repo + .git)…"
 rsync -az "${EXCL[@]}" "$LOCAL_REPO/" "$SERVER:$REMOTE_REPO/"
+# A fresh server usually has no git identity; without it the remote Claude's
+# first commit fails and it stops to ask. Copy ours in, repo-local only.
+if [ -d "$LOCAL_REPO/.git" ]; then
+  gname="$(git -C "$LOCAL_REPO" config user.name || true)"; gmail="$(git -C "$LOCAL_REPO" config user.email || true)"
+  if [ -n "$gname" ] && [ -n "$gmail" ]; then
+    "${SSH[@]}" "$SERVER" "cd '$REMOTE_REPO' && git config user.email >/dev/null 2>&1 || { git config user.name '$gname'; git config user.email '$gmail'; echo '  ✓ git identity set (repo-local)'; }"
+  fi
+fi
 
-for p in "${SYNC_PATHS[@]}"; do
+for p in ${SYNC_PATHS[@]+"${SYNC_PATHS[@]}"}; do
   [ -e "$p" ] || { warn "$p missing locally — skipped"; continue; }
   say "sync $p…"
   if [ -d "$p" ]; then
@@ -38,7 +46,7 @@ for p in "${SYNC_PATHS[@]}"; do
   fi
 done
 
-for f in "${GUARDED_FILES[@]}"; do say "guarded $f…"; guarded_push "$f" "$(remap "$f")"; done
+for f in ${GUARDED_FILES[@]+"${GUARDED_FILES[@]}"}; do say "guarded $f…"; guarded_push "$f" "$(remap "$f")"; done
 
 # Claude context: global CLAUDE.md (opt-out) + this project's memory dir
 if [ "${HANDOVER_SYNC_GLOBAL_CLAUDE_MD:-1}" = 1 ] && [ -f "$HOME/.claude/CLAUDE.md" ]; then
@@ -79,7 +87,7 @@ say "launching Claude…"
 printf '%s' "$PROMPT" | "${SSH[@]}" "$SERVER" "cat > '$REMOTE_HOME/.handover/$SESSION.prompt'"
 {
   printf '#!/usr/bin/env bash\ncd %q || exit 1\nexport CLAUDE_CONFIG_DIR=%q\n' "$REMOTE_LAUNCH" "$WORK_PROFILE_DIR"
-  for kv in "${REMOTE_ENV[@]}"; do
+  for kv in ${REMOTE_ENV[@]+"${REMOTE_ENV[@]}"}; do
     k="${kv%%=*}"; v="${kv#*=}"; v="$(remap "$(expand_tilde "$v")")"
     printf 'export %s=%q\n' "$k" "$v"
   done

@@ -187,7 +187,12 @@ Runtime knobs: `HANDOVER_FORCE=1`, `HANDOVER_SKIP_SETUP=1`, `HANDOVER_ATTACH=1`,
 - **tmux name collisions.** Auto-increments instead of clobbering an existing session.
 - **Non-interactive shells.** Ubuntu's `.bashrc` returns early for non-interactive shells, so nothing you defined there exists. The launcher exports what it needs itself.
 - **Non-ASCII paths** (`ø`, spaces) survive end to end; Claude's per-project slug is computed separately on each side.
+- **No git identity on a fresh server.** Remote Claude's first commit fails and it stops to ask. The driver copies your local `user.name`/`user.email` into the remote repo (repo-local) when missing.
 - **Newer state on the other side.** The whole reason for the guard. See above.
+
+## Tests
+
+`tests/e2e.sh` runs the whole round trip against your real server: creates a tiny markdown project, hands it over with a prompt, waits for the remote Claude to edit and commit, pulls it back, and asserts the edit, the commit, the guarded file, the backup, the transcript and both guard directions. Needs `server.env` configured. Cleans up the server; leaves the demo project locally so you can `claude --resume` into the server's conversation.
 
 ## Related work (and why this exists)
 
