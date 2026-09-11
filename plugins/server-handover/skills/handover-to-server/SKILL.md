@@ -16,6 +16,56 @@ machine → server).
 Driver: `${SKILLS}/handover-to-server/handover.sh`. Run it from inside
 the project; do not re-derive it.
 
+## Before you send: pre-screen the questions (do this every time there is a prompt)
+
+The remote session is unattended. Anything it would stop to ask the user about
+becomes hours of idle time. So screen for those questions **here, while the user
+is present**, and answer them in the prompt.
+
+1. **Mechanical checks** — run and read the warnings:
+   ```bash
+   ${SKILLS}/handover-to-server/handover.sh --preflight
+   ```
+   Missing tools on the server, no git identity, dirty tree, leftover
+   `HANDOVER-QUESTIONS.md` from last run, missing `.env`, guard conflicts.
+   Resolve what you can (commit, copy the .env, set the identity) or tell the user.
+
+2. **Judgement pass** — read the user's prompt against the project (CLAUDE.md,
+   README, recent git log, the files the task touches) and look for decisions a
+   Claude working alone would plausibly stop to ask about. **Only ask if you
+   find one.** Most prompts need zero questions; a clear prompt with a
+   CLAUDE.md that settles conventions should go straight to the server. Never
+   invent questions to look thorough, and never ask what you can look up or
+   what the unattended preamble already covers ("assume, log blockers, commit").
+   Things that do justify a question:
+   - ambiguity in scope ("which of the three failing tests?", "also the frontend?")
+   - a choice of approach with real trade-offs (library, schema change vs. migration)
+   - anything destructive or hard to undo (force-push, dropping data, deleting files)
+   - credentials, external services, deploy targets
+   - style/convention questions not settled by CLAUDE.md
+   - "done" criteria: tests must pass? open a PR? just commit?
+   If there are any, ask them all in **one** `AskUserQuestion` batch, with the
+   default you would pick marked as recommended. Rarely more than 3.
+
+3. **Fold any answers into the prompt** as an explicit block (omit the block if
+   there were no questions), then run:
+   ```bash
+   ${SKILLS}/handover-to-server/handover.sh "continue the UX work — run pytest first
+
+   DECISIONS ALREADY MADE (do not re-ask):
+   - Only fix the 3 failing tests in tests/ux/; do not touch the frontend.
+   - Use the existing migration pattern in db/migrations; no schema rewrite.
+   - Done = pytest green + one commit per logical change on branch ux-fixes. No PR.
+   - If X turns out to be needed, prefer Y."
+   ```
+   The driver adds the unattended preamble (assume, log real blockers to
+   `HANDOVER-QUESTIONS.md`, commit as you go) on top.
+
+If the user says "just send it", skip the judgement pass but still run
+`--preflight`. When the user gives **no prompt** (idle session), skip both.
+Tell the user in one line what you checked and that nothing needed asking, when
+that is the case.
+
 ## Run
 
 ```bash
@@ -54,19 +104,20 @@ Local `$HOME`-rooted paths mirror onto the server's `$HOME`
 - global `~/.claude/CLAUDE.md` (opt-out `HANDOVER_SYNC_GLOBAL_CLAUDE_MD=0`) and
   this project's Claude memory dir
 
-## When the remote Claude needs you
+## If it still needs the user later
 
-The session is unattended, so three things keep it from stalling:
+Pre-screening removes most stalls. What is left:
 
-1. **Remote Control** (default on, `HANDOVER_REMOTE_CONTROL=1` in `server.env`): the
-   remote session starts with `--remote-control`, and handover prints a
-   `https://claude.ai/code/session_…` URL. Questions and permission prompts show
-   up on the user's phone / claude.ai/code, and they can answer there.
-2. **Unattended preamble** (`HANDOVER_UNATTENDED_NOTE=1`): every prompt is prefixed
-   with "make reasonable assumptions, write real blockers to
-   `HANDOVER-QUESTIONS.md`, commit as you go". Check that file after bring-home.
-3. **Fewer prompts**: `HANDOVER_CLAUDE_ARGS='--permission-mode acceptEdits'` in
-   `server.env` if the user wants edits auto-approved on the server.
+1. **Unattended preamble** (`HANDOVER_UNATTENDED_NOTE=1`): the remote Claude is
+   told to assume, log real blockers to `HANDOVER-QUESTIONS.md`, and keep going
+   with everything else. After bring-home, read that file to the user.
+2. **`--status`** (below) tells whether it is working, idle, or waiting.
+3. **Remote Control** (`HANDOVER_REMOTE_CONTROL=1`, default on): a
+   `https://claude.ai/code/session_…` URL is printed; if the user does have the
+   Claude app or a browser handy, prompts can be answered there. Optional, not
+   required.
+4. `HANDOVER_CLAUDE_ARGS='--permission-mode acceptEdits'` in `server.env` to
+   auto-approve edits on the server.
 
 ## Check on a session (agent, headless)
 

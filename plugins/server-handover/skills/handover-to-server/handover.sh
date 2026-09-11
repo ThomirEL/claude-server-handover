@@ -4,6 +4,7 @@
 #
 #   handover.sh ["prompt for the remote Claude"]
 #   handover.sh --status [session]     is the remote session working, idle, or waiting on you?
+#   handover.sh --preflight            mechanical checks only (tools, identity, dirty tree, leftovers)
 #
 # Config: ~/.claude/handover/server.env (machine) + <launch dir>/.handover.env
 # (project; found by walking up from $PWD, or HANDOVER_PROJECT_CONFIG=path).
@@ -42,7 +43,59 @@ if [ "${1:-}" = "--status" ]; then
   exit 0
 fi
 
+PREFLIGHT_ONLY=0; [ "${1:-}" = "--preflight" ] && { PREFLIGHT_ONLY=1; PROMPT=""; }
 load_project_config "$PWD"
+
+# ---- preflight: things that would make the remote Claude stop and ask -------
+preflight() {
+  local issues=0
+  say "preflight"
+  # tools the repo implies vs what the server has (login shell)
+  local need=() m
+  [ -f "$LOCAL_REPO/package.json" ]    && need+=(node npm)
+  [ -f "$LOCAL_REPO/pyproject.toml" ] || [ -f "$LOCAL_REPO/requirements.txt" ] && need+=(python3)
+  [ -f "$LOCAL_REPO/Cargo.toml" ]      && need+=(cargo)
+  [ -f "$LOCAL_REPO/go.mod" ]          && need+=(go)
+  [ -f "$LOCAL_REPO/Gemfile" ]         && need+=(ruby bundle)
+  [ -f "$LOCAL_REPO/Makefile" ]        && need+=(make)
+  [ -f "$LOCAL_REPO/docker-compose.yml" ] || [ -f "$LOCAL_REPO/compose.yaml" ] && need+=(docker)
+  for m in ${need[@]+"${need[@]}"} git claude tmux; do
+    if "${SSH[@]}" "$SERVER" "bash -lc 'command -v $m' >/dev/null 2>&1"; then :; else warn "server lacks '$m' (repo seems to need it)"; issues=$((issues+1)); fi
+  done
+  # git identity on both sides
+  if [ -d "$LOCAL_REPO/.git" ]; then
+    [ -n "$(git -C "$LOCAL_REPO" config user.email || true)" ] || { warn "no local git user.email — remote commits will need an identity"; issues=$((issues+1)); }
+    # uncommitted work: it travels (rsync), but the remote Claude may be confused by a dirty tree
+    local dirty; dirty="$( { git -C "$LOCAL_REPO" status --porcelain 2>/dev/null | grep -v "^?? .handover.env" || true; } | wc -l | tr -d ' ')"
+    [ "$dirty" = 0 ] || { warn "$dirty uncommitted change(s) in the repo — they travel, but consider committing first"; issues=$((issues+1)); }
+  fi
+  # leftover questions from a previous unattended run
+  if [ -s "$LAUNCH_DIR/HANDOVER-QUESTIONS.md" ]; then
+    warn "HANDOVER-QUESTIONS.md exists from a previous run — answer/remove it before handing over again:"; sed 's/^/      /' "$LAUNCH_DIR/HANDOVER-QUESTIONS.md" | head -20; issues=$((issues+1))
+  fi
+  # env files referenced but absent (common "ask the user" trigger)
+  if grep -rqsE --include='*.py' --include='*.ts' --include='*.js' --include='*.sh' 'load_dotenv|dotenv|process\.env\.|os\.environ' "$LOCAL_REPO" 2>/dev/null && [ ! -f "$LOCAL_REPO/.env" ]; then
+    warn "repo reads env vars but has no .env — remote Claude may hit missing secrets"; issues=$((issues+1))
+  fi
+  # guarded files where the server is newer (push would be skipped)
+  local f r
+  for f in ${GUARDED_FILES[@]+"${GUARDED_FILES[@]}"}; do
+    r="$(remap "$f")"
+    if [ -f "$f" ] && [ "$("${SSH[@]}" "$SERVER" "stat -c %Y '$r' 2>/dev/null || echo 0")" -gt "$(mtime "$f")" ]; then
+      warn "server copy of $(basename "$f") is newer — push will be skipped (HANDOVER_FORCE=1 to override)"; issues=$((issues+1))
+    fi
+  done
+  # a session with this name already running
+  "${SSH[@]}" "$SERVER" "tmux has-session -t '$SESSION' 2>/dev/null" && { warn "tmux session '$SESSION' already exists — a new one will be '$SESSION-2'"; issues=$((issues+1)); } || true
+  [ "$issues" = 0 ] && ok "no mechanical blockers found"
+  PREFLIGHT_ISSUES=$issues
+}
+preflight
+if [ "$PREFLIGHT_ONLY" = 1 ]; then
+  echo; echo "Mechanical checks done ($PREFLIGHT_ISSUES warning(s)). Now the judgement pass: list the decisions the remote Claude"
+  echo "would stop to ask about, ask the user, and fold the answers into the prompt (see SKILL.md)."
+  exit 0
+fi
 say "handover -> $SERVER   project: $LAUNCH_DIR   session: $SESSION"
 
 "${SSH[@]}" "$SERVER" "mkdir -p '$REMOTE_REPO' '$REMOTE_LAUNCH' '$REMOTE_HOME/.claude/projects' '$REMOTE_HOME/.handover'"

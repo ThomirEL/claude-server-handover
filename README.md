@@ -86,15 +86,24 @@ flowchart TD
     F -- no --> H[✗ abort]
 ```
 
-### When Claude needs you
+### Ask the questions before it leaves
 
-The session is unattended, so a question or permission prompt would stall it. Three things stop that:
+The session is unattended, so a question or permission prompt would stall it for hours. The fix is to ask those questions **before** the handover, while you are still at the keyboard.
 
-- The remote session starts with **Remote Control** (`--remote-control`). Handover prints a `claude.ai/code/session_…` URL; questions and permission prompts appear on your phone or in the browser, and you answer there.
-- Every prompt gets an **unattended preamble**: make reasonable assumptions, write real blockers to `HANDOVER-QUESTIONS.md`, commit as you go.
-- `handover.sh --status` reads the tmux pane and reports `▶ WORKING`, `✔ IDLE` or `⚠ WAITING FOR YOU`, with the last lines and how to answer.
+```mermaid
+flowchart LR
+    P[your prompt] --> M["--preflight<br/>tools · git identity · dirty tree<br/>leftover questions · .env · guards"]
+    M --> J["judgement pass<br/>Claude lists the 3–6 decisions<br/>a lone Claude would stop to ask"]
+    J -- yes --> A[one AskUserQuestion batch]
+    A --> D["prompt + DECISIONS ALREADY MADE"]
+    J -- no --> S
+    D --> S[server]
+```
 
-Optional: `HANDOVER_CLAUDE_ARGS='--permission-mode acceptEdits'` in `server.env` to auto-approve edits on the server.
+- `handover.sh --preflight` runs the mechanical checks. The skill tells Claude to run it, then read your prompt against the project and, **only if** there is a real judgement call (scope, approach, destructive steps, credentials, done criteria), ask in one batch and fold the answers into the prompt. A clear prompt goes straight through.
+- Every prompt still gets an **unattended preamble**: assume, write real blockers to `HANDOVER-QUESTIONS.md`, commit as you go. Preflight flags that file if it exists from a previous run.
+- `handover.sh --status` reads the tmux pane and reports `▶ WORKING`, `✔ IDLE` or `⚠ WAITING FOR YOU`.
+- Optional, not required: the session starts with **Remote Control**, so if you do have the Claude app or a browser handy, a leftover prompt can be answered there. `HANDOVER_REMOTE_CONTROL=0` turns it off. `HANDOVER_CLAUDE_ARGS='--permission-mode acceptEdits'` auto-approves edits on the server.
 
 ```
 ⚠ WAITING FOR YOU — session myproj has a question or permission prompt:
@@ -210,7 +219,7 @@ Runtime knobs: `HANDOVER_FORCE=1`, `HANDOVER_SKIP_SETUP=1`, `HANDOVER_ATTACH=1`,
 - **macOS bash 3.2 + UTF-8.** `"$f…"` makes bash 3.2 read the ellipsis bytes as part of the variable name and abort under `set -u`. Every variable followed by a non-ASCII character is braced (`${f}…`), and the e2e test runs under `/bin/bash` with `LANG=en_US.UTF-8` on purpose.
 - **No git identity on a fresh server.** Remote Claude's first commit fails and it stops to ask. The driver copies your local `user.name`/`user.email` into the remote repo (repo-local) when missing.
 - **Newer state on the other side.** The whole reason for the guard. See above.
-- **Remote Claude stops to ask.** It happened on the very first test: no git identity, Claude asked, and sat there. Hence Remote Control by default, the unattended preamble, and `--status`.
+- **Remote Claude stops to ask.** It happened on the very first test: no git identity, Claude asked, and sat there. Hence the pre-screening step, `--preflight`, the unattended preamble, `--status`, and Remote Control as a fallback.
 
 ## Tests
 

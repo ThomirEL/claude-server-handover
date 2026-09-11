@@ -36,6 +36,12 @@ echo "── 1. setup project"
 echo "── 2. exit codes without config"
 tmpd=$(mktemp -d); (cd "$tmpd" && "$SKILLS/handover-to-server/handover.sh" >/dev/null 2>&1) && fail "should exit 3" || { [ $? -eq 3 ] && pass "exit 3 when no project config"; }
 
+echo "── 2b. preflight"
+cd "$DEMO"; echo "- leftover?" > HANDOVER-QUESTIONS.md
+"$SKILLS/handover-to-server/handover.sh" --preflight > /tmp/preflight.log 2>&1 || true
+grep -q "HANDOVER-QUESTIONS.md exists" /tmp/preflight.log && pass "preflight flags leftover questions" || { cat /tmp/preflight.log; fail "preflight missed leftover questions"; }
+rm HANDOVER-QUESTIONS.md
+
 echo "── 3. handover with a prompt"
 cd "$DEMO"
 "$SKILLS/handover-to-server/handover.sh" 'Append the line "- edited on the server" to notes.md, then run: git add -A && git commit -m "server edit". Do nothing else, then stop.' | tee /tmp/handover-demo.log
