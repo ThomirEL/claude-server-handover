@@ -2,7 +2,7 @@
   "name": "server-handover",
   "displayName": "Server Handover",
   "description": "Hand a Claude Code session to a home server over SSH/Tailscale, let it work while your laptop is closed, pull the work and the conversation back.",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "author": { "name": "Thomas Edward Larsen", "url": "https://github.com/ThomirEL" },
   "homepage": "https://github.com/ThomirEL/claude-server-handover",
   "repository": "https://github.com/ThomirEL/claude-server-handover",
