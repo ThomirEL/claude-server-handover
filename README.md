@@ -187,6 +187,7 @@ Runtime knobs: `HANDOVER_FORCE=1`, `HANDOVER_SKIP_SETUP=1`, `HANDOVER_ATTACH=1`,
 - **tmux name collisions.** Auto-increments instead of clobbering an existing session.
 - **Non-interactive shells.** Ubuntu's `.bashrc` returns early for non-interactive shells, so nothing you defined there exists. The launcher exports what it needs itself.
 - **Non-ASCII paths** (`ø`, spaces) survive end to end; Claude's per-project slug is computed separately on each side.
+- **macOS bash 3.2 + UTF-8.** `"$f…"` makes bash 3.2 read the ellipsis bytes as part of the variable name and abort under `set -u`. Every variable followed by a non-ASCII character is braced (`${f}…`), and the e2e test runs under `/bin/bash` with `LANG=en_US.UTF-8` on purpose.
 - **No git identity on a fresh server.** Remote Claude's first commit fails and it stops to ask. The driver copies your local `user.name`/`user.email` into the remote repo (repo-local) when missing.
 - **Newer state on the other side.** The whole reason for the guard. See above.
 

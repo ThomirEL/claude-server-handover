@@ -25,7 +25,7 @@ server)
     --host) HOST="$2"; shift 2;; --claude-config-dir) CFGDIR="$2"; shift 2;;
     *) die "unknown flag $1";; esac; done
   [ -n "$HOST" ] || die "--host user@host is required"
-  say "checking key-based ssh to $HOST…"
+  say "checking key-based ssh to ${HOST}…"
   rh="$(ssh -o BatchMode=yes -o ConnectTimeout=10 "$HOST" 'echo $HOME' 2>/dev/null || true)"
   [ -n "$rh" ] || die "cannot reach $HOST without a password. Run: ssh-copy-id $HOST   then retry"
   ok "ssh ok (remote home $rh)"

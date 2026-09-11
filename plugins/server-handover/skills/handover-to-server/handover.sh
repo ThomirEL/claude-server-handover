@@ -36,7 +36,7 @@ fi
 
 for p in ${SYNC_PATHS[@]+"${SYNC_PATHS[@]}"}; do
   [ -e "$p" ] || { warn "$p missing locally — skipped"; continue; }
-  say "sync $p…"
+  say "sync ${p}…"
   if [ -d "$p" ]; then
     "${SSH[@]}" "$SERVER" "mkdir -p '$(remap "$p")'"
     rsync -az "${EXCL[@]}" "$p/" "$SERVER:$(remap "$p")/"
@@ -46,7 +46,7 @@ for p in ${SYNC_PATHS[@]+"${SYNC_PATHS[@]}"}; do
   fi
 done
 
-for f in ${GUARDED_FILES[@]+"${GUARDED_FILES[@]}"}; do say "guarded $f…"; guarded_push "$f" "$(remap "$f")"; done
+for f in ${GUARDED_FILES[@]+"${GUARDED_FILES[@]}"}; do say "guarded ${f}…"; guarded_push "$f" "$(remap "$f")"; done
 
 # Claude context: global CLAUDE.md (opt-out) + this project's memory dir
 if [ "${HANDOVER_SYNC_GLOBAL_CLAUDE_MD:-1}" = 1 ] && [ -f "$HOME/.claude/CLAUDE.md" ]; then

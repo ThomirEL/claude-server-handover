@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # End-to-end test against a REAL server: setup → handover (with a prompt Claude
 # executes remotely) → bring home. Needs server.env configured already.
 #
@@ -10,6 +10,7 @@
 # server side and the tmux session; leaves the local demo dir for inspection
 # unless KEEP=0.
 set -euo pipefail
+export LANG="${LANG:-en_US.UTF-8}" LC_ALL="${LC_ALL:-en_US.UTF-8}"   # macOS bash 3.2 + UTF-8 is the hostile case; test it on purpose
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 SKILLS="${SKILLS:-$HERE/plugins/server-handover/skills}"
 DEMO="$HOME/repos/handover-demo"

@@ -7,7 +7,7 @@
       "name": "server-handover",
       "source": "./plugins/server-handover",
       "description": "setup-server, handover-to-server, bring-home-from-server: push a project to your home server, start Claude in tmux (with a prompt), pull the work and the session transcript back.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "category": "productivity",
       "keywords": ["ssh", "tmux", "rsync", "tailscale", "homelab", "handover", "resume"]
     }
