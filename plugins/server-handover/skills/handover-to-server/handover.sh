@@ -3,6 +3,7 @@
 # Code there in a detached tmux session, optionally already working on a prompt.
 #
 #   handover.sh ["prompt for the remote Claude"]
+#   handover.sh --status [session]     is the remote session working, idle, or waiting on you?
 #
 # Config: ~/.claude/handover/server.env (machine) + <launch dir>/.handover.env
 # (project; found by walking up from $PWD, or HANDOVER_PROJECT_CONFIG=path).
@@ -18,6 +19,29 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 PROMPT="$*"
 
 load_server_config
+
+# ---- --status: read the tmux pane and classify ------------------------------
+if [ "${1:-}" = "--status" ]; then
+  SESS="${2:-}"
+  if [ -z "$SESS" ]; then load_project_config "$PWD"; SESS="$SESSION"; fi
+  pane="$("${SSH[@]}" "$SERVER" "tmux capture-pane -t '$SESS' -p 2>/dev/null" || true)"
+  [ -n "$pane" ] || die "no tmux session '$SESS' on $SERVER"
+  tail="$(printf '%s\n' "$pane" | grep -v '^[[:space:]]*$' | tail -12)"
+  waiting=0
+  if printf '%s' "$tail" | grep -qE 'Enter to select|\(y/n\)|Do you want to|Allow .* to|❯ 1\.|Yes, and don.t ask again|Type something'; then
+    waiting=1; printf '\033[1;33m⚠ WAITING FOR YOU\033[0m — session %s has a question or permission prompt:\n' "$SESS"
+  elif printf '%s' "$tail" | grep -qE '^\s*❯\s*$'; then
+    printf '\033[1;32m✔ IDLE\033[0m — session %s finished its turn (prompt is empty):\n' "$SESS"
+  else
+    printf '\033[1;34m▶ WORKING\033[0m — session %s is busy:\n' "$SESS"
+  fi
+  printf '%s\n' "$tail" | sed 's/^/    /'
+  echo
+  [ "$waiting" = 1 ] && echo "  Answer it:  ssh -t $SERVER 'tmux attach -t $SESS'   (or on your phone via the Remote Control URL above)"
+  echo "  Attach:     ssh -t $SERVER 'tmux attach -t $SESS'"
+  exit 0
+fi
+
 load_project_config "$PWD"
 say "handover -> $SERVER   project: $LAUNCH_DIR   session: $SESSION"
 
@@ -84,6 +108,13 @@ PY
 
 # Prompt goes through a file (no shell-quoting games); launcher bakes in paths + env.
 say "launching Claude…"
+RC="${HANDOVER_REMOTE_CONTROL:-1}"
+if [ -n "$PROMPT" ] && [ "${HANDOVER_UNATTENDED_NOTE:-1}" = 1 ]; then
+  PROMPT="You are running unattended on a remote server; the user handed this work over and is not watching. Make reasonable assumptions instead of stopping to ask. If something truly needs the user's decision, write it to HANDOVER-QUESTIONS.md in the project root and continue with everything that does not depend on it. Commit your work as you go.
+
+TASK:
+$PROMPT"
+fi
 printf '%s' "$PROMPT" | "${SSH[@]}" "$SERVER" "cat > '$REMOTE_HOME/.handover/$SESSION.prompt'"
 {
   printf '#!/usr/bin/env bash\ncd %q || exit 1\nexport CLAUDE_CONFIG_DIR=%q\n' "$REMOTE_LAUNCH" "$WORK_PROFILE_DIR"
@@ -91,7 +122,9 @@ printf '%s' "$PROMPT" | "${SSH[@]}" "$SERVER" "cat > '$REMOTE_HOME/.handover/$SE
     k="${kv%%=*}"; v="${kv#*=}"; v="$(remap "$(expand_tilde "$v")")"
     printf 'export %s=%q\n' "$k" "$v"
   done
-  printf 'P="$HOME/.handover/%s.prompt"\nif [ -s "$P" ]; then exec claude "$(cat "$P")"; else exec claude; fi\n' "$SESSION"
+  printf 'ARGS=(%s)\n' "${HANDOVER_CLAUDE_ARGS:-}"
+  [ "$RC" = 1 ] && printf 'ARGS+=(--remote-control %q)\n' "$SESSION"
+  printf 'P="$HOME/.handover/%s.prompt"\nif [ -s "$P" ]; then exec claude "${ARGS[@]}" "$(cat "$P")"; else exec claude "${ARGS[@]}"; fi\n' "$SESSION"
 } | "${SSH[@]}" "$SERVER" "cat > '$REMOTE_HOME/.handover/$SESSION.launch.sh'; chmod +x '$REMOTE_HOME/.handover/$SESSION.launch.sh'"
 
 SESS="$("${SSH[@]}" "$SERVER" "
@@ -106,5 +139,15 @@ printf '\033[1;32m✔ Claude is running on %s in tmux session '\''%s'\''.\033[0m
 [ -n "$PROMPT" ] && echo "  It has already started on your prompt."
 echo "  Attach from your terminal:"
 echo "      ssh -t $SERVER 'tmux attach -t $SESS'"
+if [ "$RC" = 1 ]; then
+  url=""
+  for _ in $(seq 1 20); do
+    url="$("${SSH[@]}" "$SERVER" "tmux capture-pane -t '$SESS' -p -S -200 2>/dev/null" | grep -oE 'https://claude\.ai/code/[A-Za-z0-9_-]+' | head -1 || true)"
+    [ -n "$url" ] && break; sleep 1
+  done
+  if [ -n "$url" ]; then echo "  Or from your phone / browser (Remote Control):"; echo "      $url"
+  else echo "  (Remote Control URL not visible yet — run: $0 --status $SESS)"; fi
+fi
+echo "  Check on it later:  $0 --status $SESS"
 [ "${HANDOVER_ATTACH:-0}" = 1 ] && exec ssh -t "$SERVER" "tmux attach -t '$SESS'"
 exit 0

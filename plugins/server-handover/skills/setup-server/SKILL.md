@@ -24,8 +24,15 @@ ideal). Optionally a remote `CLAUDE_CONFIG_DIR` if they use a separate Claude
 profile on the server.
 
 ```bash
-${SKILLS}/setup-server/setup-server.sh server --host user@host
+${SKILLS}/setup-server/setup-server.sh server --host user@host \
+  [--no-remote-control] [--claude-args "--permission-mode acceptEdits"]
 ```
+
+Remote Control is on by default: the remote session starts with
+`--remote-control`, so questions and permission prompts reach the user's phone or
+claude.ai/code instead of stalling in tmux. On Team/Enterprise an admin must have
+enabled Remote Control; if the remote session fails to start, re-run with
+`--no-remote-control` (or set `HANDOVER_REMOTE_CONTROL=0` in `server.env`).
 
 It checks key-based ssh (no password prompts — `ssh-copy-id user@host` if it
 fails) and that `tmux`, `rsync`, `python3`, `claude` exist on the server.

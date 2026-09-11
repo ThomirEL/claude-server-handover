@@ -6,6 +6,10 @@
 #        HANDOVER_SERVER            ssh target, e.g. you@100.x.y.z
 #        HANDOVER_CLAUDE_CONFIG_DIR remote CLAUDE_CONFIG_DIR (default remote ~/.claude)
 #        HANDOVER_SYNC_GLOBAL_CLAUDE_MD  push ~/.claude/CLAUDE.md too (default 1)
+#        HANDOVER_REMOTE_CONTROL    start the remote session with --remote-control so
+#                                   questions/permissions reach your phone or claude.ai/code (default 1)
+#        HANDOVER_CLAUDE_ARGS       extra flags for the remote claude, e.g. '--permission-mode acceptEdits'
+#        HANDOVER_UNATTENDED_NOTE   prepend an "you are unattended" preamble to the prompt (default 1)
 #   2. project config <launch dir>/.handover.env      (one per project)
 #        HANDOVER_REPO          git repo to sync; "." = launch dir (default .)
 #        HANDOVER_SYNC_PATHS    extra files/dirs to mirror (space-separated, ~ ok)

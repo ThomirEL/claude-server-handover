@@ -41,6 +41,11 @@ cd "$DEMO"
 "$SKILLS/handover-to-server/handover.sh" 'Append the line "- edited on the server" to notes.md, then run: git add -A && git commit -m "server edit". Do nothing else, then stop.' | tee /tmp/handover-demo.log
 SESS=$(grep -o "tmux session '[^']*'" /tmp/handover-demo.log | sed "s/tmux session '//;s/'//")
 [ -n "$SESS" ] && pass "session $SESS launched" || fail "no session name"
+if grep -q '^HANDOVER_REMOTE_CONTROL=1' "$HOME/.claude/handover/server.env"; then
+  grep -qE 'https://claude\.ai/code/' /tmp/handover-demo.log && pass "Remote Control URL printed" || fail "no Remote Control URL"
+fi
+"$SKILLS/handover-to-server/handover.sh" --status "$SESS" > /tmp/handover-status.log 2>&1 || true
+grep -qE 'WORKING|IDLE|WAITING' /tmp/handover-status.log && pass "--status works" || { cat /tmp/handover-status.log; fail "--status broken"; }
 ssh_ "cd ~/repos/handover-demo && git branch --show-current" | grep -q mac-branch && pass "local-only branch travelled" || fail "branch missing on server"
 ssh_ "cat ~/.handover-demo/decisions.db" | grep -q "decisions v1" && pass "guarded file pushed" || fail "guarded file missing"
 

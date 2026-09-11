@@ -63,8 +63,8 @@ sequenceDiagram
     M->>S: guarded files (skip if server copy is newer)
     M->>S: run remote setup (venv, npm ci…)
     M->>S: pre-accept folder trust
-    M->>S: tmux new-session → claude "prompt"
-    Note over S: Claude works for hours.<br/>Mac lid closed.
+    M->>S: tmux new-session → claude --remote-control "prompt"
+    Note over S: Claude works for hours.<br/>Mac lid closed.<br/>Questions reach your phone.
     S-->>M: rsync repo (server branches travel)
     S-->>M: guarded files (skip if local copy is newer)
     S-->>M: memory + newest session transcript
@@ -84,6 +84,24 @@ flowchart TD
     E --> F{sha256 equal?}
     F -- yes --> G[✓]
     F -- no --> H[✗ abort]
+```
+
+### When Claude needs you
+
+The session is unattended, so a question or permission prompt would stall it. Three things stop that:
+
+- The remote session starts with **Remote Control** (`--remote-control`). Handover prints a `claude.ai/code/session_…` URL; questions and permission prompts appear on your phone or in the browser, and you answer there.
+- Every prompt gets an **unattended preamble**: make reasonable assumptions, write real blockers to `HANDOVER-QUESTIONS.md`, commit as you go.
+- `handover.sh --status` reads the tmux pane and reports `▶ WORKING`, `✔ IDLE` or `⚠ WAITING FOR YOU`, with the last lines and how to answer.
+
+Optional: `HANDOVER_CLAUDE_ARGS='--permission-mode acceptEdits'` in `server.env` to auto-approve edits on the server.
+
+```
+⚠ WAITING FOR YOU — session myproj has a question or permission prompt:
+     ☐ Git identity
+    Commit failed: git has no author identity on this server. How should I set it?
+    ❯ 1. Repo-only …
+  Answer it:  ssh -t you@100.x.y.z 'tmux attach -t myproj'
 ```
 
 ### Two layers of config
@@ -178,6 +196,8 @@ See [`docs/example.handover.env`](docs/example.handover.env). Every field is opt
 | `HANDOVER_REMOTE_ENV` | `KEY=value` pairs exported into the remote Claude; `~` remapped |
 | `HANDOVER_EXCLUDES` | extra rsync excludes |
 
+Server knobs (`server.env`): `HANDOVER_REMOTE_CONTROL` (default 1), `HANDOVER_CLAUDE_ARGS`, `HANDOVER_UNATTENDED_NOTE` (default 1), `HANDOVER_CLAUDE_CONFIG_DIR`, `HANDOVER_SYNC_GLOBAL_CLAUDE_MD`.
+
 Runtime knobs: `HANDOVER_FORCE=1`, `HANDOVER_SKIP_SETUP=1`, `HANDOVER_ATTACH=1`, `BRINGHOME_SKIP_GUARDED=1`, `BRINGHOME_DEST_PREFIX=/tmp/x` (dry-run the pull into a scratch dir), `HANDOVER_PROJECT_CONFIG=/path/.handover.env`.
 
 ## Things that bit me (and are handled)
@@ -190,6 +210,7 @@ Runtime knobs: `HANDOVER_FORCE=1`, `HANDOVER_SKIP_SETUP=1`, `HANDOVER_ATTACH=1`,
 - **macOS bash 3.2 + UTF-8.** `"$f…"` makes bash 3.2 read the ellipsis bytes as part of the variable name and abort under `set -u`. Every variable followed by a non-ASCII character is braced (`${f}…`), and the e2e test runs under `/bin/bash` with `LANG=en_US.UTF-8` on purpose.
 - **No git identity on a fresh server.** Remote Claude's first commit fails and it stops to ask. The driver copies your local `user.name`/`user.email` into the remote repo (repo-local) when missing.
 - **Newer state on the other side.** The whole reason for the guard. See above.
+- **Remote Claude stops to ask.** It happened on the very first test: no git identity, Claude asked, and sat there. Hence Remote Control by default, the unattended preamble, and `--status`.
 
 ## Tests
 

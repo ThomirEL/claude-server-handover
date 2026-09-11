@@ -54,11 +54,30 @@ Local `$HOME`-rooted paths mirror onto the server's `$HOME`
 - global `~/.claude/CLAUDE.md` (opt-out `HANDOVER_SYNC_GLOBAL_CLAUDE_MD=0`) and
   this project's Claude memory dir
 
-## Verify a launched session (agent, headless)
+## When the remote Claude needs you
+
+The session is unattended, so three things keep it from stalling:
+
+1. **Remote Control** (default on, `HANDOVER_REMOTE_CONTROL=1` in `server.env`): the
+   remote session starts with `--remote-control`, and handover prints a
+   `https://claude.ai/code/session_…` URL. Questions and permission prompts show
+   up on the user's phone / claude.ai/code, and they can answer there.
+2. **Unattended preamble** (`HANDOVER_UNATTENDED_NOTE=1`): every prompt is prefixed
+   with "make reasonable assumptions, write real blockers to
+   `HANDOVER-QUESTIONS.md`, commit as you go". Check that file after bring-home.
+3. **Fewer prompts**: `HANDOVER_CLAUDE_ARGS='--permission-mode acceptEdits'` in
+   `server.env` if the user wants edits auto-approved on the server.
+
+## Check on a session (agent, headless)
 
 ```bash
-ssh -o BatchMode=yes user@host 'tmux capture-pane -t <session> -p | tail -15'
+${SKILLS}/handover-to-server/handover.sh --status            # session from .handover.env
+${SKILLS}/handover-to-server/handover.sh --status <session>
 ```
+
+Prints `▶ WORKING`, `✔ IDLE` (turn finished, prompt empty) or `⚠ WAITING FOR YOU`
+(question / permission prompt) plus the last pane lines and how to answer. Use
+this when the user asks "how is the server doing?" or "is it stuck?".
 
 ## Knobs
 
@@ -66,6 +85,9 @@ ssh -o BatchMode=yes user@host 'tmux capture-pane -t <session> -p | tail -15'
 - `HANDOVER_SKIP_SETUP=1` — skip `HANDOVER_REMOTE_SETUP`
 - `HANDOVER_ATTACH=1` — `ssh -t` attach at the end
 - `HANDOVER_PROJECT_CONFIG` — explicit `.handover.env` path
+- `HANDOVER_REMOTE_CONTROL=0` — launch without Remote Control (server.env)
+- `HANDOVER_CLAUDE_ARGS` — extra flags for the remote `claude` (server.env)
+- `HANDOVER_UNATTENDED_NOTE=0` — do not prepend the unattended preamble (server.env)
 
 ## Gotchas (all hit and handled)
 

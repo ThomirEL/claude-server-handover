@@ -2,6 +2,7 @@
 # setup-server — one-time configuration for the handover skills.
 #
 #   setup-server.sh server  --host user@host [--claude-config-dir ~/.claude]
+#                           [--no-remote-control] [--claude-args "--permission-mode acceptEdits"]
 #   setup-server.sh project [--dir <launch dir>] [--repo .] [--sync "p1 p2"]
 #                           [--guarded "f1 f2"] [--session name] [--remote-setup "cmd"]
 #                           [--remote-env "K=v K2=v2"] [--excludes "pat1 pat2"] [--force]
@@ -20,9 +21,10 @@ q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
 
 case "$cmd" in
 server)
-  HOST=""; CFGDIR=""
+  HOST=""; CFGDIR=""; RC=1; CARGS=""
   while [ $# -gt 0 ]; do case "$1" in
     --host) HOST="$2"; shift 2;; --claude-config-dir) CFGDIR="$2"; shift 2;;
+    --no-remote-control) RC=0; shift;; --claude-args) CARGS="$2"; shift 2;;
     *) die "unknown flag $1";; esac; done
   [ -n "$HOST" ] || die "--host user@host is required"
   say "checking key-based ssh to ${HOST}…"
@@ -39,6 +41,13 @@ server)
     echo "HANDOVER_SERVER=$(q "$HOST")"
     [ -n "$CFGDIR" ] && echo "HANDOVER_CLAUDE_CONFIG_DIR=$(q "$CFGDIR")" || echo "#HANDOVER_CLAUDE_CONFIG_DIR='~/.claude'"
     echo "HANDOVER_SYNC_GLOBAL_CLAUDE_MD=1"
+    echo "# 1 = remote session starts with --remote-control: questions and permission prompts"
+    echo "#     reach your phone / claude.ai/code instead of stalling in tmux."
+    echo "HANDOVER_REMOTE_CONTROL=$RC"
+    echo "# extra flags for the remote claude, e.g. '--permission-mode acceptEdits'"
+    echo "HANDOVER_CLAUDE_ARGS=$(q "$CARGS")"
+    echo "# 1 = prepend an 'you are running unattended' preamble to every handover prompt"
+    echo "HANDOVER_UNATTENDED_NOTE=1"
   } > "$SERVER_ENV"
   ok "wrote $SERVER_ENV"
   ;;
